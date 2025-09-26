@@ -12,8 +12,22 @@ import {
   OrderType,
 } from '../../database/entities';
 
+/**
+ * @class ReportsService
+ * @description This service is responsible for aggregating data from various sources to generate reports.
+ */
 @Injectable()
 export class ReportsService {
+  /**
+   * @constructor
+   * @param {Repository<Order>} orderRepository - Repository for Order entities.
+   * @param {Repository<OrderLine>} orderLineRepository - Repository for OrderLine entities.
+   * @param {Repository<Inventory>} inventoryRepository - Repository for Inventory entities.
+   * @param {Repository<Item>} itemRepository - Repository for Item entities.
+   * @param {Repository<Customer>} customerRepository - Repository for Customer entities.
+   * @param {Repository<Invoice>} invoiceRepository - Repository for Invoice entities.
+   * @param {Repository<Payment>} paymentRepository - Repository for Payment entities.
+   */
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
@@ -31,6 +45,11 @@ export class ReportsService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
+  /**
+   * @method getDashboard
+   * @description Retrieves a summary of key metrics and data for the main dashboard.
+   * @returns {Promise<object>} A promise that resolves to an object containing dashboard data.
+   */
   async getDashboard() {
     const [
       totalCustomers,
@@ -59,6 +78,15 @@ export class ReportsService {
     };
   }
 
+  /**
+   * @method getInventoryReports
+   * @description Generates a report on current inventory levels, with optional filters.
+   * @param {string} [customerId] - Optional ID of the customer to filter inventory by.
+   * @param {string} [warehouseId] - Optional ID of the warehouse to filter inventory by.
+   * @param {string} [from] - Optional start date to filter inventory records by their last update time.
+   * @param {string} [to] - Optional end date to filter inventory records by their last update time.
+   * @returns {Promise<object>} A promise that resolves to an object containing the inventory list and totals.
+   */
   async getInventoryReports(
     customerId?: string,
     warehouseId?: string,
@@ -118,6 +146,15 @@ export class ReportsService {
     };
   }
 
+  /**
+   * @method getOrderReports
+   * @description Generates a report on orders, with optional filters.
+   * @param {string} [customerId] - Optional ID of the customer to filter orders by.
+   * @param {string} [status] - Optional status to filter orders by.
+   * @param {string} [from] - Optional start date to filter orders by their creation time.
+   * @param {string} [to] - Optional end date to filter orders by their creation time.
+   * @returns {Promise<object>} A promise that resolves to an object containing the list of orders and calculated metrics.
+   */
   async getOrderReports(
     customerId?: string,
     status?: string,
@@ -167,6 +204,14 @@ export class ReportsService {
     };
   }
 
+  /**
+   * @method getFinancialReports
+   * @description Generates a report on financials based on invoices and payments.
+   * @param {string} [customerId] - Optional ID of the customer to filter by.
+   * @param {string} [from] - Optional start date for the report period.
+   * @param {string} [to] - Optional end date for the report period.
+   * @returns {Promise<object>} A promise that resolves to an object containing a list of invoices and financial summaries.
+   */
   async getFinancialReports(
     customerId?: string,
     from?: string,
@@ -214,6 +259,13 @@ export class ReportsService {
     };
   }
 
+  /**
+   * @method getPerformanceKPIs
+   * @description Retrieves a set of mock performance KPIs.
+   * @param {string} [period] - Optional period for the KPIs (e.g., 'month', 'quarter').
+   * @param {string} [customerId] - Optional customer ID to filter KPIs.
+   * @returns {Promise<object>} A promise that resolves to an object containing mock KPI data.
+   */
   async getPerformanceKPIs(period?: string, customerId?: string) {
     return {
       period,
@@ -226,6 +278,12 @@ export class ReportsService {
     };
   }
 
+  /**
+   * @method getTotalRevenue
+   * @description Calculates the total revenue from all 'PAID' invoices.
+   * @private
+   * @returns {Promise<number>} A promise that resolves to the total revenue.
+   */
   private async getTotalRevenue(): Promise<number> {
     const result = await this.invoiceRepository
       .createQueryBuilder('invoice')
@@ -235,14 +293,32 @@ export class ReportsService {
     return parseFloat(result.total) || 0;
   }
 
+  /**
+   * @method getOrderTrends
+   * @description Placeholder for retrieving order trend data.
+   * @private
+   * @returns {Promise<any[]>} A promise that resolves to an empty array.
+   */
   private async getOrderTrends() {
     return [];
   }
 
+  /**
+   * @method getRevenueTrends
+   * @description Placeholder for retrieving revenue trend data.
+   * @private
+   * @returns {Promise<any[]>} A promise that resolves to an empty array.
+   */
   private async getRevenueTrends() {
     return [];
   }
 
+  /**
+   * @method getInventoryLevels
+   * @description Placeholder for retrieving inventory level trend data.
+   * @private
+   * @returns {Promise<any[]>} A promise that resolves to an empty array.
+   */
   private async getInventoryLevels() {
     return [];
   }

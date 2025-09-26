@@ -2,53 +2,97 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, IsUUID, IsDateString, IsNumber, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
+/**
+ * @class CreateRouteDto
+ * @description Data transfer object for creating a new delivery route.
+ */
 export class CreateRouteDto {
-  @ApiProperty()
+  /**
+   * A descriptive name for the route.
+   * @type {string}
+   * @example 'Morning Delivery Route A'
+   */
+  @ApiProperty({ description: 'A descriptive name for the route.', example: 'Morning Delivery Route A' })
   @IsString()
   name: string;
 
-  @ApiProperty({ required: false })
+  /**
+   * An optional, more detailed description of the route.
+   * @type {string}
+   * @example 'Covering the downtown area.'
+   */
+  @ApiProperty({ description: 'An optional, more detailed description of the route.', required: false, example: 'Covering the downtown area.' })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiProperty({ required: false })
+  /**
+   * The optional ID of the driver assigned to this route.
+   * @type {string}
+   * @example 'driver-uuid-123'
+   */
+  @ApiProperty({ description: 'The optional ID of the driver assigned to this route.', required: false, example: 'driver-uuid-123' })
   @IsOptional()
   @IsString()
   driverId?: string;
 
-  @ApiProperty({ required: false })
+  /**
+   * The optional ID of the vehicle assigned to this route.
+   * @type {string}
+   * @example 'vehicle-uuid-456'
+   */
+  @ApiProperty({ description: 'The optional ID of the vehicle assigned to this route.', required: false, example: 'vehicle-uuid-456' })
   @IsOptional()
   @IsString()
   vehicleId?: string;
 
-  @ApiProperty({ required: false })
+  /**
+   * The optional planned start time for the route.
+   * @type {string}
+   * @example '2024-10-28T08:00:00Z'
+   */
+  @ApiProperty({ description: 'The optional planned start time for the route.', required: false, example: '2024-10-28T08:00:00Z' })
   @IsOptional()
   @IsDateString()
   plannedStartTime?: string;
 
-  @ApiProperty({ required: false })
+  /**
+   * The optional planned end time for the route.
+   * @type {string}
+   * @example '2024-10-28T17:00:00Z'
+   */
+  @ApiProperty({ description: 'The optional planned end time for the route.', required: false, example: '2024-10-28T17:00:00Z' })
   @IsOptional()
   @IsDateString()
   plannedEndTime?: string;
 
-  @ApiProperty({ required: false })
+  /**
+   * The optional total planned distance for the route in kilometers.
+   * @type {number}
+   * @example 150.5
+   */
+  @ApiProperty({ description: 'The optional total planned distance for the route in kilometers.', required: false, example: 150.5 })
   @IsOptional()
   @IsNumber()
   totalDistance?: number;
 
-  @ApiProperty()
+  /**
+   * The unique identifier of the tenant this route belongs to.
+   * @type {string}
+   * @example 'a1b2c3d4-e5f6-7890-1234-567890abcdef'
+   */
+  @ApiProperty({ description: 'The unique identifier of the tenant this route belongs to.', example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef' })
   @IsUUID()
   tenantId: string;
 
+  /**
+   * An optional array of stops to be created with the route.
+   * @type {RouteStopInput[]}
+   */
   @ApiProperty({
     required: false,
-    type: [Object],
-    description: 'Optional planned stops with order linkage',
-    example: [
-      { orderId: 'uuid-order-1', seq: 1 },
-      { orderId: 'uuid-order-2', seq: 2 },
-    ],
+    type: () => [RouteStopInput],
+    description: 'An optional array of stops to be created with the route.',
   })
   @IsOptional()
   @IsArray()
@@ -57,12 +101,26 @@ export class CreateRouteDto {
   stops?: RouteStopInput[];
 }
 
+/**
+ * @class RouteStopInput
+ * @description Represents a single stop to be created as part of a new route.
+ */
 export class RouteStopInput {
-  @ApiProperty()
+  /**
+   * The unique identifier of the order associated with this stop.
+   * @type {string}
+   * @example 'order-uuid-123'
+   */
+  @ApiProperty({ description: 'The unique identifier of the order associated with this stop.', example: 'order-uuid-123' })
   @IsUUID()
   orderId: string;
 
-  @ApiProperty()
+  /**
+   * The sequence number of this stop in the route's itinerary.
+   * @type {number}
+   * @example 1
+   */
+  @ApiProperty({ description: "The sequence number of this stop in the route's itinerary.", example: 1 })
   @IsNumber()
   seq: number;
 }

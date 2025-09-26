@@ -4,8 +4,17 @@ import { Repository } from 'typeorm';
 import { UnbilledTxn } from '../../../database/entities/billing.entity';
 import { Customer } from '../../../database/entities/customer.entity';
 
+/**
+ * @class BillingService
+ * @description This service handles general billing inquiries, such as retrieving unbilled transactions and dashboard data.
+ */
 @Injectable()
 export class BillingService {
+  /**
+   * @constructor
+   * @param {Repository<UnbilledTxn>} unbilledTxnRepo - Repository for UnbilledTxn entities.
+   * @param {Repository<Customer>} customerRepo - Repository for Customer entities.
+   */
   constructor(
     @InjectRepository(UnbilledTxn)
     private readonly unbilledTxnRepo: Repository<UnbilledTxn>,
@@ -14,11 +23,12 @@ export class BillingService {
   ) {}
 
   /**
-   * Get unbilled transactions
-   * @param customerId Customer ID filter
-   * @param from Start date filter
-   * @param to End date filter
-   * @returns Unbilled transactions
+   * @method getUnbilledTransactions
+   * @description Retrieves a list of unbilled transactions, with optional filters, grouped by customer.
+   * @param {string} [customerId] - Optional ID of the customer to filter by.
+   * @param {string} [from] - Optional start date for the transactions (YYYY-MM-DD).
+   * @param {string} [to] - Optional end date for the transactions (YYYY-MM-DD).
+   * @returns {Promise<object>} A promise that resolves to an object containing a summary and a list of customers with their unbilled transactions.
    */
   async getUnbilledTransactions(
     customerId?: string,
@@ -70,8 +80,9 @@ export class BillingService {
   }
 
   /**
-   * Get billing dashboard data
-   * @returns Dashboard metrics
+   * @method getBillingDashboard
+   * @description Retrieves key metrics for the billing dashboard, including an overview of unbilled transactions and recent activity.
+   * @returns {Promise<object>} A promise that resolves to an object containing dashboard data.
    */
   async getBillingDashboard() {
     const totalCustomers = await this.customerRepo.count();
@@ -97,8 +108,10 @@ export class BillingService {
   }
 
   /**
-   * Get recent billing activity
-   * @returns Recent transactions
+   * @method getRecentActivity
+   * @description Retrieves the 10 most recent unbilled transactions.
+   * @private
+   * @returns {Promise<UnbilledTxn[]>} A promise that resolves to an array of the latest UnbilledTxn entities.
    */
   private async getRecentActivity() {
     return this.unbilledTxnRepo
