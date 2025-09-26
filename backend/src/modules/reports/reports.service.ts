@@ -1,13 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Order, Inventory, Item, Customer, Invoice, Payment } from '../../database/entities';
+import { Repository, In } from 'typeorm';
+import {
+  Order,
+  Inventory,
+  Item,
+  Customer,
+  Invoice,
+  Payment,
+  OrderLine,
+  OrderType,
+} from '../../database/entities';
 
 @Injectable()
 export class ReportsService {
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    @InjectRepository(OrderLine)
+    private readonly orderLineRepository: Repository<OrderLine>,
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
     @InjectRepository(Item)
@@ -73,12 +84,36 @@ export class ReportsService {
     }
 
     const inventories = await query.getMany();
+    const itemSkus = [...new Set(inventories.map((inv) => inv.itemSku))];
+    let totalValue = 0;
+
+    if (itemSkus.length > 0) {
+      const lastPurchasePrices = await this.orderLineRepository
+        .createQueryBuilder('line')
+        .leftJoin('line.order', 'order')
+        .where('line.itemSku IN (:...itemSkus)', { itemSkus })
+        .andWhere('order.type = :type', { type: OrderType.IN })
+        .orderBy('line.createdAt', 'DESC')
+        .getMany();
+
+      const priceMap = new Map<string, number>();
+      for (const line of lastPurchasePrices) {
+        if (!priceMap.has(line.itemSku)) {
+          priceMap.set(line.itemSku, line.unitPrice);
+        }
+      }
+
+      totalValue = inventories.reduce((sum, inv) => {
+        const price = priceMap.get(inv.itemSku) || 0;
+        return sum + inv.qty * price;
+      }, 0);
+    }
 
     return {
       inventories,
       totals: {
         totalItems: inventories.reduce((sum, inv) => sum + inv.qty, 0),
-        totalValue: inventories.reduce((sum, inv) => sum + (inv.qty * (inv.item?.unitPrice || 0)), 0),
+        totalValue,
       },
     };
   }
@@ -92,7 +127,7 @@ export class ReportsService {
     const query = this.orderRepository
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.customer', 'customer')
-      .leftJoinAndSelect('order.items', 'items')
+      .leftJoinAndSelect('order.lines', 'items')
       .leftJoinAndSelect('items.item', 'item');
 
     if (customerId) {
@@ -113,8 +148,21 @@ export class ReportsService {
       orders,
       metrics: {
         totalOrders: orders.length,
-        totalValue: orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
-        totalItems: orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.qty, 0), 0),
+        totalValue: orders.reduce(
+          (sum, order) =>
+            sum +
+            (order.lines?.reduce(
+              (lineSum, line) => lineSum + line.qty * (line.unitPrice || 0),
+              0,
+            ) || 0),
+          0,
+        ),
+        totalItems: orders.reduce(
+          (sum, order) =>
+            sum +
+            (order.lines?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0),
+          0,
+        ),
       },
     };
   }
@@ -143,8 +191,25 @@ export class ReportsService {
       invoices,
       financials: {
         totalInvoiced: invoices.reduce((sum, invoice) => sum + invoice.total, 0),
-        totalPaid: invoices.reduce((sum, invoice) => sum + invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0), 0),
-        totalOutstanding: invoices.reduce((sum, invoice) => sum + (invoice.total - invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0)), 0),
+        totalPaid: invoices.reduce(
+          (sum, invoice) =>
+            sum +
+            invoice.payments.reduce(
+              (paymentSum, payment) => paymentSum + payment.amount,
+              0,
+            ),
+          0,
+        ),
+        totalOutstanding: invoices.reduce(
+          (sum, invoice) =>
+            sum +
+            (invoice.total -
+              invoice.payments.reduce(
+                (paymentSum, payment) => paymentSum + payment.amount,
+                0,
+              )),
+          0,
+        ),
       },
     };
   }
@@ -165,6 +230,7 @@ export class ReportsService {
     const result = await this.invoiceRepository
       .createQueryBuilder('invoice')
       .select('SUM(invoice.total)', 'total')
+      .where('invoice.status = :status', { status: 'PAID' })
       .getRawOne();
     return parseFloat(result.total) || 0;
   }
