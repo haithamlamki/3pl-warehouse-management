@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Route, RouteStop, EPod } from '../../database/entities/route.entity';
-import { Order, OwnerTypeEffective, OrderStatus } from '../../../database/entities/order.entity';
+import { Order, OwnerTypeEffective, OrderStatus } from '../../database/entities/order.entity';
 import { CreateRouteDto } from './dto/create-route.dto';
 import { UpdateRouteDto } from './dto/update-route.dto';
 import { CompleteStopDto } from './dto/complete-stop.dto';

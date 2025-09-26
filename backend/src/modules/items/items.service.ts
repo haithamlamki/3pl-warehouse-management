@@ -21,8 +21,8 @@ export class ItemsService {
     return this.itemRepository.find();
   }
 
-  async findOne(id: string): Promise<Item> {
-    const item = await this.itemRepository.findOne({ where: { id } });
+  async findOne(sku: string): Promise<Item> {
+    const item = await this.itemRepository.findOne({ where: { sku } });
 
     if (!item) {
       throw new NotFoundException('Item not found');
@@ -31,14 +31,14 @@ export class ItemsService {
     return item;
   }
 
-  async update(id: string, updateItemDto: UpdateItemDto): Promise<Item> {
-    const item = await this.findOne(id);
+  async update(sku: string, updateItemDto: UpdateItemDto): Promise<Item> {
+    const item = await this.findOne(sku);
     Object.assign(item, updateItemDto);
     return this.itemRepository.save(item);
   }
 
-  async remove(id: string): Promise<void> {
-    const item = await this.findOne(id);
+  async remove(sku: string): Promise<void> {
+    const item = await this.findOne(sku);
     await this.itemRepository.remove(item);
   }
 }

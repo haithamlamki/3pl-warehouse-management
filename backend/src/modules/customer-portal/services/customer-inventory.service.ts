@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Inventory } from '../../../database/entities/inventory.entity';
+import { Inventory, OwnerType } from '../../../database/entities/inventory.entity';
 import { Item } from '../../../database/entities/item.entity';
 import { Warehouse } from '../../../database/entities/warehouse.entity';
 import { Bin } from '../../../database/entities/warehouse.entity';
@@ -26,7 +26,7 @@ export class CustomerInventoryService {
    */
   async getInventorySnapshot(customerId: string) {
     const inventory = await this.inventoryRepo.find({
-      where: { ownerId: customerId, ownerType: 'client' },
+      where: { ownerId: customerId, ownerType: OwnerType.CLIENT },
       relations: ['item', 'warehouse', 'bin', 'lot'],
     });
 

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UnbilledTxn } from '../../database/entities/billing.entity';
-import { Customer } from '../../database/entities/customer.entity';
+import { UnbilledTxn } from '../../../database/entities/billing.entity';
+import { Customer } from '../../../database/entities/customer.entity';
 
 @Injectable()
 export class BillingService {

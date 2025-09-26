@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Order, OrderLine } from '../../../database/entities/order.entity';
+import { Order, OrderLine, OrderStatus } from '../../../database/entities/order.entity';
 import { CreateOrderDto } from '../dto/create-order.dto';
 
 @Injectable()
@@ -47,7 +47,7 @@ export class CustomerOrdersService {
       tenantId: dto.tenantId,
       customerId: dto.customerId,
       type: dto.type,
-      status: 'NEW',
+      status: OrderStatus.NEW,
       notes: dto.notes,
     });
 

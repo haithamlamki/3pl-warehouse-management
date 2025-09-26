@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Customer } from '../../database/entities/customer.entity';
-import { UnbilledTxn } from '../../database/entities/billing.entity';
+import { Customer } from '../../../database/entities/customer.entity';
+import { UnbilledTxn } from '../../../database/entities/billing.entity';
 import { InvoiceService } from './invoice.service';
 import { UnbilledTxnService } from './unbilled-txn.service';
 
@@ -43,20 +43,15 @@ export class BatchBillingService {
     private readonly unbilledTxnService: UnbilledTxnService,
   ) {}
 
-  /**
-   * Run monthly billing cycle for all customers
-   */
   async runMonthlyBilling(period: string): Promise<BatchBillingResult> {
-    // Parse period (YYYY-MM)
     const [year, month] = period.split('-').map(Number);
     const from = new Date(year, month - 1, 1);
     const to = new Date(year, month, 0, 23, 59, 59, 999);
 
     console.log(`Running monthly billing for period ${period} (${from.toISOString()} to ${to.toISOString()})`);
 
-    // Get all active customers
     const customers = await this.customerRepo.find({
-      where: { status: 'active' },
+      where: { status: 'active' as any },
     });
 
     const results: CustomerBillingResult[] = [];
@@ -99,15 +94,11 @@ export class BatchBillingService {
     };
   }
 
-  /**
-   * Process billing for a single customer
-   */
   private async processCustomerBilling(
     customer: Customer,
     from: Date,
     to: Date,
   ): Promise<CustomerBillingResult> {
-    // Get unbilled transactions for the period
     const unbilledTxns = await this.unbilledTxnService.getUnbilledTxns(
       customer.id,
       from,
@@ -125,8 +116,8 @@ export class BatchBillingService {
     }
 
     try {
-      // Generate invoice
       const invoice = await this.invoiceService.generate({
+        tenantId: customer.tenantId,
         customerId: customer.id,
         periodFrom: from.toISOString(),
         periodTo: to.toISOString(),
@@ -137,7 +128,7 @@ export class BatchBillingService {
         customerName: customer.name,
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
-        totalAmount: invoice.totalAmount,
+        totalAmount: invoice.total,
         transactionCount: unbilledTxns.length,
         success: true,
       };
@@ -153,9 +144,6 @@ export class BatchBillingService {
     }
   }
 
-  /**
-   * Get billing summary for a period
-   */
   async getBillingSummary(period: string): Promise<{
     period: string;
     totalUnbilledAmount: number;
@@ -172,7 +160,6 @@ export class BatchBillingService {
     const from = new Date(year, month - 1, 1);
     const to = new Date(year, month, 0, 23, 59, 59, 999);
 
-    // Get all unbilled transactions for the period
     const unbilledTxns = await this.unbilledTxnRepo.find({
       where: {
         billed: false,
@@ -184,7 +171,6 @@ export class BatchBillingService {
       relations: ['customer'],
     });
 
-    // Group by customer
     const customerMap = new Map<string, {
       customerId: string;
       customerName: string;

@@ -4,9 +4,9 @@ import { Response } from 'express';
 import { InvoiceService } from '../services/invoice.service';
 import { PdfExportService } from '../services/pdf-export.service';
 import { GenerateInvoiceDto } from '../dto/generate-invoice.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Roles } from '../../../common/decorators/roles.decorator';
 
 @ApiTags('billing')
 @ApiBearerAuth()
