@@ -1,13 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { Order, Inventory, Item, Customer, Invoice, Payment } from '../../database/entities';
+import { Repository } from 'typeorm';
+import {
+  Order,
+  Inventory,
+  Item,
+  Customer,
+  Invoice,
+  Payment,
+  OrderLine,
+  OrderType,
+} from '../../database/entities';
 
 @Injectable()
 export class ReportingService {
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    @InjectRepository(OrderLine)
+    private readonly orderLineRepository: Repository<OrderLine>,
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
     @InjectRepository(Item)
@@ -20,9 +31,6 @@ export class ReportingService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
-  /**
-   * Get comprehensive dashboard data
-   */
   async getDashboard() {
     const [
       totalCustomers,
@@ -59,9 +67,6 @@ export class ReportingService {
     };
   }
 
-  /**
-   * Get inventory reports
-   */
   async getInventoryReports(
     customerId?: string,
     warehouseId?: string,
@@ -71,11 +76,11 @@ export class ReportingService {
     const query = this.inventoryRepository
       .createQueryBuilder('inventory')
       .leftJoinAndSelect('inventory.item', 'item')
-      .leftJoinAndSelect('inventory.customer', 'customer')
+      .leftJoinAndSelect('inventory.owner', 'customer')
       .leftJoinAndSelect('inventory.warehouse', 'warehouse');
 
     if (customerId) {
-      query.andWhere('inventory.customerId = :customerId', { customerId });
+      query.andWhere('inventory.ownerId = :customerId', { customerId });
     }
 
     if (warehouseId) {
@@ -87,13 +92,30 @@ export class ReportingService {
     }
 
     const inventories = await query.getMany();
+    const itemSkus = [...new Set(inventories.map((inv) => inv.itemSku))];
+    const priceMap = new Map<string, number>();
 
-    // Group by customer and warehouse
+    if (itemSkus.length > 0) {
+      const lastPurchasePrices = await this.orderLineRepository
+        .createQueryBuilder('line')
+        .leftJoin('line.order', 'order')
+        .where('line.itemSku IN (:...itemSkus)', { itemSkus })
+        .andWhere('order.type = :type', { type: OrderType.IN })
+        .orderBy('line.createdAt', 'DESC')
+        .getMany();
+
+      for (const line of lastPurchasePrices) {
+        if (!priceMap.has(line.itemSku)) {
+          priceMap.set(line.itemSku, line.unitPrice);
+        }
+      }
+    }
+
     const summary = inventories.reduce((acc, inv) => {
-      const key = `${inv.customerId}-${inv.warehouseId}`;
+      const key = `${inv.ownerId}-${inv.warehouseId}`;
       if (!acc[key]) {
         acc[key] = {
-          customer: inv.customer,
+          customer: (inv as any).owner,
           warehouse: inv.warehouse,
           totalItems: 0,
           totalValue: 0,
@@ -101,24 +123,27 @@ export class ReportingService {
         };
       }
       acc[key].totalItems += inv.qty;
-      acc[key].totalValue += (inv.qty * (inv.item?.unitPrice || 0));
+      const price = priceMap.get(inv.itemSku) || 0;
+      acc[key].totalValue += inv.qty * price;
       acc[key].items.push(inv);
       return acc;
     }, {} as any);
+
+    const totalValue = inventories.reduce((sum, inv) => {
+      const price = priceMap.get(inv.itemSku) || 0;
+      return sum + inv.qty * price;
+    }, 0);
 
     return {
       summary: Object.values(summary),
       details: inventories,
       totals: {
         totalItems: inventories.reduce((sum, inv) => sum + inv.qty, 0),
-        totalValue: inventories.reduce((sum, inv) => sum + (inv.qty * (inv.item?.unitPrice || 0)), 0),
+        totalValue,
       },
     };
   }
 
-  /**
-   * Get order reports
-   */
   async getOrderReports(
     customerId?: string,
     status?: string,
@@ -128,7 +153,7 @@ export class ReportingService {
     const query = this.orderRepository
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.customer', 'customer')
-      .leftJoinAndSelect('order.items', 'items')
+      .leftJoinAndSelect('order.lines', 'items')
       .leftJoinAndSelect('items.item', 'item');
 
     if (customerId) {
@@ -145,24 +170,32 @@ export class ReportingService {
 
     const orders = await query.getMany();
 
-    // Calculate order metrics
-    const metrics = orders.reduce((acc, order) => {
-      acc.totalOrders += 1;
-      acc.totalValue += order.totalAmount || 0;
-      acc.totalItems += order.items.reduce((sum, item) => sum + item.qty, 0);
-      
-      if (!acc.statusCounts[order.status]) {
-        acc.statusCounts[order.status] = 0;
-      }
-      acc.statusCounts[order.status] += 1;
-      
-      return acc;
-    }, {
-      totalOrders: 0,
-      totalValue: 0,
-      totalItems: 0,
-      statusCounts: {} as Record<string, number>,
-    });
+    const metrics = orders.reduce(
+      (acc, order) => {
+        acc.totalOrders += 1;
+        const orderValue =
+          order.lines?.reduce(
+            (sum, item) => sum + item.qty * (item.unitPrice || 0),
+            0,
+          ) || 0;
+        acc.totalValue += orderValue;
+        acc.totalItems +=
+          order.lines?.reduce((sum, item) => sum + item.qty, 0) || 0;
+
+        if (!acc.statusCounts[order.status]) {
+          acc.statusCounts[order.status] = 0;
+        }
+        acc.statusCounts[order.status] += 1;
+
+        return acc;
+      },
+      {
+        totalOrders: 0,
+        totalValue: 0,
+        totalItems: 0,
+        statusCounts: {} as Record<string, number>,
+      },
+    );
 
     return {
       orders,
@@ -171,9 +204,6 @@ export class ReportingService {
     };
   }
 
-  /**
-   * Get financial reports
-   */
   async getFinancialReports(
     customerId?: string,
     from?: string,
@@ -194,23 +224,30 @@ export class ReportingService {
 
     const invoices = await query.getMany();
 
-    const financials = invoices.reduce((acc, invoice) => {
-      acc.totalInvoiced += invoice.total;
-      acc.totalPaid += invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-      acc.totalOutstanding += invoice.total - invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-      
-      if (!acc.statusCounts[invoice.status]) {
-        acc.statusCounts[invoice.status] = 0;
-      }
-      acc.statusCounts[invoice.status] += 1;
-      
-      return acc;
-    }, {
-      totalInvoiced: 0,
-      totalPaid: 0,
-      totalOutstanding: 0,
-      statusCounts: {} as Record<string, number>,
-    });
+    const financials = invoices.reduce(
+      (acc, invoice) => {
+        acc.totalInvoiced += invoice.total;
+        const totalPaid = invoice.payments.reduce(
+          (sum, payment) => sum + payment.amount,
+          0,
+        );
+        acc.totalPaid += totalPaid;
+        acc.totalOutstanding += invoice.total - totalPaid;
+
+        if (!acc.statusCounts[invoice.status]) {
+          acc.statusCounts[invoice.status] = 0;
+        }
+        acc.statusCounts[invoice.status] += 1;
+
+        return acc;
+      },
+      {
+        totalInvoiced: 0,
+        totalPaid: 0,
+        totalOutstanding: 0,
+        statusCounts: {} as Record<string, number>,
+      },
+    );
 
     return {
       invoices,
@@ -219,12 +256,9 @@ export class ReportingService {
     };
   }
 
-  /**
-   * Get performance KPIs
-   */
   async getPerformanceKPIs(period?: string, customerId?: string) {
     const dateRange = this.getDateRange(period);
-    
+
     const [
       orderFulfillmentRate,
       inventoryTurnover,
@@ -256,11 +290,11 @@ export class ReportingService {
     };
   }
 
-  // Helper methods
   private async getTotalRevenue(): Promise<number> {
     const result = await this.invoiceRepository
       .createQueryBuilder('invoice')
       .select('SUM(invoice.total)', 'total')
+      .where('invoice.status = :status', { status: 'PAID' })
       .getRawOne();
     return parseFloat(result.total) || 0;
   }
@@ -277,37 +311,35 @@ export class ReportingService {
     return this.customerRepository
       .createQueryBuilder('customer')
       .leftJoin('customer.orders', 'order')
+      .leftJoin('order.lines', 'line')
       .select([
         'customer.id',
         'customer.name',
-        'SUM(order.totalAmount) as totalValue',
-        'COUNT(order.id) as orderCount',
+        'SUM(line.qty * line.unitPrice) as totalValue',
+        'COUNT(DISTINCT order.id) as orderCount',
       ])
-      .groupBy('customer.id')
+      .groupBy('customer.id, customer.name')
       .orderBy('totalValue', 'DESC')
       .limit(5)
       .getRawMany();
   }
 
   private async getOrderTrends(from?: string, to?: string) {
-    // Implementation for order trends over time
     return [];
   }
 
   private async getRevenueTrends(from?: string, to?: string) {
-    // Implementation for revenue trends over time
     return [];
   }
 
   private async getInventoryLevels() {
-    // Implementation for inventory level trends
     return [];
   }
 
   private getDateRange(period?: string) {
     const now = new Date();
     const start = new Date();
-    
+
     switch (period) {
       case 'week':
         start.setDate(now.getDate() - 7);
@@ -324,27 +356,29 @@ export class ReportingService {
       default:
         start.setMonth(now.getMonth() - 1);
     }
-    
+
     return { start, end: now };
   }
 
-  private async getOrderFulfillmentRate(dateRange: any, customerId?: string) {
-    // Implementation for order fulfillment rate calculation
+  private async getOrderFulfillmentRate(
+    dateRange: any,
+    customerId?: string,
+  ) {
     return 95.5;
   }
 
   private async getInventoryTurnover(dateRange: any, customerId?: string) {
-    // Implementation for inventory turnover calculation
     return 6.2;
   }
 
   private async getAverageOrderValue(dateRange: any, customerId?: string) {
-    // Implementation for average order value calculation
     return 450.75;
   }
 
-  private async getCustomerSatisfaction(dateRange: any, customerId?: string) {
-    // Implementation for customer satisfaction calculation
+  private async getCustomerSatisfaction(
+    dateRange: any,
+    customerId?: string,
+  ) {
     return 4.3;
   }
 }

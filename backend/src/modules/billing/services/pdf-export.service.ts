@@ -1,11 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Invoice, InvoiceLine } from '../../database/entities/billing.entity';
-import { Customer } from '../../database/entities/customer.entity';
+import { In, Repository } from 'typeorm';
+import { Invoice } from '../../../database/entities/billing.entity';
+import { Customer } from '../../../database/entities/customer.entity';
 
+/**
+ * @class PdfExportService
+ * @description This service is responsible for generating exportable documents like PDFs and CSVs for billing purposes.
+ */
 @Injectable()
 export class PdfExportService {
+  /**
+   * @constructor
+   * @param {Repository<Invoice>} invoiceRepo - Repository for Invoice entities.
+   * @param {Repository<Customer>} customerRepo - Repository for Customer entities.
+   */
   constructor(
     @InjectRepository(Invoice)
     private readonly invoiceRepo: Repository<Invoice>,
@@ -14,7 +23,11 @@ export class PdfExportService {
   ) {}
 
   /**
-   * Generate PDF for an invoice
+   * @method generateInvoicePdf
+   * @description Generates an HTML representation of an invoice, which can be converted to a PDF.
+   * @param {string} invoiceId - The unique identifier of the invoice to generate.
+   * @returns {Promise<string>} A promise that resolves to an HTML string representing the invoice.
+   * @throws {NotFoundException} If the invoice with the given ID is not found.
    */
   async generateInvoicePdf(invoiceId: string): Promise<string> {
     const invoice = await this.invoiceRepo.findOne({
@@ -23,19 +36,22 @@ export class PdfExportService {
     });
 
     if (!invoice) {
-      throw new Error('Invoice not found');
+      throw new NotFoundException('Invoice not found');
     }
 
     // Generate HTML content
     const htmlContent = this.generateInvoiceHtml(invoice);
 
-    // For now, return HTML content
-    // In production, you would use a library like puppeteer or html-pdf-node
+    // In a production environment, this HTML would be passed to a library like Puppeteer to generate a PDF.
     return htmlContent;
   }
 
   /**
-   * Generate HTML content for invoice
+   * @method generateInvoiceHtml
+   * @description Constructs the HTML content for a single invoice.
+   * @private
+   * @param {Invoice} invoice - The invoice entity to generate HTML for.
+   * @returns {string} The generated HTML string.
    */
   private generateInvoiceHtml(invoice: Invoice): string {
     const customer = invoice.customer;
@@ -49,83 +65,21 @@ export class PdfExportService {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة ${invoice.invoiceNumber}</title>
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .invoice-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-        .header {
-            text-align: center;
-            border-bottom: 2px solid #333;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        .company-info {
-            text-align: right;
-            margin-bottom: 20px;
-        }
-        .customer-info {
-            text-align: right;
-            margin-bottom: 20px;
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 5px;
-        }
-        .invoice-details {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-        }
-        .invoice-details div {
-            text-align: right;
-        }
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-        }
-        .items-table th,
-        .items-table td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: right;
-        }
-        .items-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        .totals {
-            text-align: left;
-            margin-top: 20px;
-        }
-        .totals table {
-            width: 300px;
-            margin-left: auto;
-        }
-        .totals td {
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
-        }
-        .total-row {
-            font-weight: bold;
-            background-color: #f2f2f2;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            color: #666;
-        }
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .invoice-container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+        .company-info { text-align: right; margin-bottom: 20px; }
+        .customer-info { text-align: right; margin-bottom: 20px; background: #f9f9f9; padding: 15px; border-radius: 5px; }
+        .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .invoice-details div { text-align: right; }
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 12px; text-align: right; }
+        .items-table th { background-color: #f2f2f2; font-weight: bold; }
+        .totals { text-align: left; margin-top: 20px; }
+        .totals table { width: 300px; margin-left: auto; }
+        .totals td { padding: 8px; border-bottom: 1px solid #ddd; }
+        .total-row { font-weight: bold; background-color: #f2f2f2; }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
     </style>
 </head>
 <body>
@@ -146,14 +100,14 @@ export class PdfExportService {
         <div class="customer-info">
             <h3>بيانات العميل</h3>
             <p><strong>الاسم:</strong> ${customer.name}</p>
-            <p><strong>البريد الإلكتروني:</strong> ${customer.billingEmail || 'غير محدد'}</p>
+            <p><strong>البريد الإلكتروني:</strong> ${customer.email || 'غير محدد'}</p>
             <p><strong>الهاتف:</strong> ${customer.phone || 'غير محدد'}</p>
             <p><strong>الشخص المسؤول:</strong> ${customer.contactPerson || 'غير محدد'}</p>
         </div>
 
         <div class="invoice-details">
             <div>
-                <p><strong>تاريخ الإصدار:</strong> ${new Date(invoice.issueDate).toLocaleDateString('ar-SA')}</p>
+                <p><strong>تاريخ الإصدار:</strong> ${new Date(invoice.createdAt).toLocaleDateString('ar-SA')}</p>
                 <p><strong>تاريخ الاستحقاق:</strong> ${new Date(invoice.dueDate).toLocaleDateString('ar-SA')}</p>
             </div>
             <div>
@@ -180,8 +134,8 @@ export class PdfExportService {
                         <td>${line.serviceType}</td>
                         <td>${line.qty}</td>
                         <td>${line.uom}</td>
-                        <td>${line.rate.toFixed(2)} ريال</td>
-                        <td>${line.amount.toFixed(2)} ريال</td>
+                        <td>${(line.rate || 0).toFixed(2)} ريال</td>
+                        <td>${(line.amount || 0).toFixed(2)} ريال</td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -191,15 +145,15 @@ export class PdfExportService {
             <table>
                 <tr>
                     <td>المجموع الفرعي:</td>
-                    <td>${invoice.subtotal.toFixed(2)} ريال</td>
+                    <td>${(invoice.subtotal || 0).toFixed(2)} ريال</td>
                 </tr>
                 <tr>
                     <td>ضريبة القيمة المضافة (15%):</td>
-                    <td>${invoice.taxAmount.toFixed(2)} ريال</td>
+                    <td>${(invoice.tax || 0).toFixed(2)} ريال</td>
                 </tr>
                 <tr class="total-row">
                     <td>المجموع الكلي:</td>
-                    <td>${invoice.totalAmount.toFixed(2)} ريال</td>
+                    <td>${(invoice.total || 0).toFixed(2)} ريال</td>
                 </tr>
             </table>
         </div>
@@ -215,27 +169,37 @@ export class PdfExportService {
   }
 
   /**
-   * Get status text in Arabic
+   * @method getStatusText
+   * @description Converts an invoice status key into a human-readable Arabic string.
+   * @private
+   * @param {string} status - The status key (e.g., 'PAID', 'OPEN').
+   * @returns {string} The display-friendly status text in Arabic.
    */
   private getStatusText(status: string): string {
     const statusMap = {
       'DRAFT': 'مسودة',
+      'OPEN': 'مفتوحة',
       'FINAL': 'نهائية',
       'SENT': 'مرسلة',
       'PAID': 'مدفوعة',
+      'PARTIAL': 'مدفوعة جزئياً',
       'OVERDUE': 'متأخرة',
       'CANCELLED': 'ملغاة',
+      'VOID': 'لاغية',
     };
     return statusMap[status] || status;
   }
 
   /**
-   * Generate CSV export for invoices
+   * @method generateInvoicesCsv
+   * @description Generates a CSV string containing data for a given list of invoices.
+   * @param {string[]} invoiceIds - An array of unique identifiers for the invoices to include in the CSV.
+   * @returns {Promise<string>} A promise that resolves to a CSV-formatted string.
    */
   async generateInvoicesCsv(invoiceIds: string[]): Promise<string> {
     const invoices = await this.invoiceRepo.find({
-      where: { id: { $in: invoiceIds } } as any,
-      relations: ['customer', 'lines'],
+      where: { id: In(invoiceIds) },
+      relations: ['customer'],
     });
 
     const csvHeaders = [
@@ -253,19 +217,19 @@ export class PdfExportService {
 
     const csvRows = invoices.map(invoice => [
       invoice.invoiceNumber,
-      new Date(invoice.issueDate).toLocaleDateString('ar-SA'),
+      new Date(invoice.createdAt).toLocaleDateString('ar-SA'),
       new Date(invoice.dueDate).toLocaleDateString('ar-SA'),
       invoice.customer.name,
-      invoice.customer.billingEmail || '',
+      invoice.customer.email || '',
       invoice.customer.phone || '',
-      invoice.subtotal.toFixed(2),
-      invoice.taxAmount.toFixed(2),
-      invoice.totalAmount.toFixed(2),
+      (invoice.subtotal || 0).toFixed(2),
+      (invoice.tax || 0).toFixed(2),
+      (invoice.total || 0).toFixed(2),
       this.getStatusText(invoice.status),
     ]);
 
     const csvContent = [csvHeaders, ...csvRows]
-      .map(row => row.map(field => `"${field}"`).join(','))
+      .map(row => row.map(field => `"${String(field || '').replace(/"/g, '""')}"`).join(','))
       .join('\n');
 
     return csvContent;

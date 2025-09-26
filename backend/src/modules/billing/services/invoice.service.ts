@@ -8,8 +8,23 @@ import { Order, OrderLine, OwnerTypeEffective } from '../../../database/entities
 import { GenerateInvoiceDto } from '../dto/generate-invoice.dto';
 import { PricingEngineService } from './pricing-engine.service';
 
+/**
+ * @class InvoiceService
+ * @description This service manages all operations related to invoices, including creation, retrieval, and processing.
+ */
 @Injectable()
 export class InvoiceService {
+  /**
+   * @constructor
+   * @param {Repository<Invoice>} invoiceRepo - Repository for Invoice entities.
+   * @param {Repository<InvoiceLine>} invoiceLineRepo - Repository for InvoiceLine entities.
+   * @param {Repository<UnbilledTxn>} unbilledTxnRepo - Repository for UnbilledTxn entities.
+   * @param {Repository<Customer>} customerRepo - Repository for Customer entities.
+   * @param {Repository<RateCard>} rateCardRepo - Repository for RateCard entities.
+   * @param {Repository<Order>} orderRepo - Repository for Order entities.
+   * @param {Repository<OrderLine>} orderLineRepo - Repository for OrderLine entities.
+   * @param {PricingEngineService} pricingEngine - Service for calculating prices based on rate cards.
+   */
   constructor(
     @InjectRepository(Invoice)
     private readonly invoiceRepo: Repository<Invoice>,
@@ -29,12 +44,13 @@ export class InvoiceService {
   ) {}
 
   /**
-   * Find all invoices
-   * @param customerId Customer ID filter
-   * @param status Status filter
-   * @param from Start date filter
-   * @param to End date filter
-   * @returns Invoices
+   * @method findAll
+   * @description Retrieves a list of invoices, with optional filtering.
+   * @param {string} [customerId] - Optional ID of the customer to filter by.
+   * @param {string} [status] - Optional status to filter by (e.g., 'OPEN', 'PAID').
+   * @param {string} [from] - Optional start date for the invoice period (YYYY-MM-DD).
+   * @param {string} [to] - Optional end date for the invoice period (YYYY-MM-DD).
+   * @returns {Promise<Invoice[]>} A promise that resolves to an array of Invoice entities.
    */
   async findAll(
     customerId?: string,
@@ -68,9 +84,11 @@ export class InvoiceService {
   }
 
   /**
-   * Find invoice by ID
-   * @param id Invoice ID
-   * @returns Invoice
+   * @method findOne
+   * @description Finds a single invoice by its unique ID, including its relations.
+   * @param {string} id - The unique identifier of the invoice.
+   * @returns {Promise<Invoice>} A promise that resolves to the Invoice entity.
+   * @throws {NotFoundException} If no invoice is found with the given ID.
    */
   async findOne(id: string): Promise<Invoice> {
     const invoice = await this.invoiceRepo.findOne({
@@ -86,9 +104,12 @@ export class InvoiceService {
   }
 
   /**
-   * Generate invoice from unbilled transactions
-   * @param dto Generate invoice DTO
-   * @returns Generated invoice
+   * @method generate
+   * @description Generates a new invoice from unbilled transactions for a customer within a specified period.
+   * @param {GenerateInvoiceDto} dto - The data transfer object containing the details for invoice generation.
+   * @returns {Promise<Invoice>} A promise that resolves to the newly created and finalized Invoice entity.
+   * @throws {NotFoundException} If the specified customer is not found.
+   * @throws {Error} If no unbilled transactions are found for the period.
    */
   async generate(dto: GenerateInvoiceDto): Promise<Invoice> {
     // Get customer
@@ -187,9 +208,10 @@ export class InvoiceService {
   }
 
   /**
-   * Send invoice to customer
-   * @param id Invoice ID
-   * @returns Success message
+   * @method send
+   * @description Simulates sending an invoice to a customer. In a real application, this would integrate with an email service.
+   * @param {string} id - The unique identifier of the invoice to send.
+   * @returns {Promise<{ message: string }>} A promise that resolves to an object with a success message.
    */
   async send(id: string): Promise<{ message: string }> {
     const invoice = await this.findOne(id);
@@ -204,9 +226,10 @@ export class InvoiceService {
   }
 
   /**
-   * Generate invoice PDF
-   * @param id Invoice ID
-   * @returns PDF buffer
+   * @method generatePdf
+   * @description Generates a mock PDF buffer for an invoice. In a real application, this would use a PDF generation library.
+   * @param {string} id - The unique identifier of the invoice.
+   * @returns {Promise<Buffer>} A promise that resolves to a Buffer containing the mock PDF data.
    */
   async generatePdf(id: string): Promise<Buffer> {
     const invoice = await this.findOne(id);
@@ -224,8 +247,10 @@ export class InvoiceService {
   }
 
   /**
-   * Generate unique invoice number
-   * @returns Invoice number
+   * @method generateInvoiceNumber
+   * @description Generates a unique, sequential invoice number for the current month.
+   * @private
+   * @returns {Promise<string>} A promise that resolves to the generated invoice number (e.g., 'INV-202401-0001').
    */
   private async generateInvoiceNumber(): Promise<string> {
     const year = new Date().getFullYear();
@@ -246,9 +271,13 @@ export class InvoiceService {
   }
 
   /**
-   * Generate invoice for PURCHASE_FOR_CLIENT orders upon ePOD completion
-   * @param orderId Order ID
-   * @returns Generated invoice
+   * @method generatePurchaseForClientInvoice
+   * @description Generates a special invoice for a 'PURCHASE_FOR_CLIENT' type order after it has been delivered.
+   * This includes both the sale of items and any associated service fees.
+   * @param {string} orderId - The unique identifier of the order.
+   * @returns {Promise<Invoice>} A promise that resolves to the newly created Invoice entity.
+   * @throws {NotFoundException} If the order or an active rate card for the customer is not found.
+   * @throws {Error} If the order is not of type 'PURCHASE_FOR_CLIENT' or has not been delivered.
    */
   async generatePurchaseForClientInvoice(orderId: string): Promise<Invoice> {
     const order = await this.orderRepo.findOne({

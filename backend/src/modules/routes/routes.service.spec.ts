@@ -2,8 +2,8 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RoutesService } from './routes.service';
-import { Route, RouteStop, EPod } from '../../../database/entities/route.entity';
-import { Order, OwnerTypeEffective, OrderStatus } from '../../../database/entities/order.entity';
+import { Route, RouteStop, EPod } from '../../database/entities/route.entity';
+import { Order, OwnerTypeEffective, OrderStatus } from '../../database/entities/order.entity';
 import { InvoiceService } from '../billing/services/invoice.service';
 
 describe('RoutesService.completeStop', () => {

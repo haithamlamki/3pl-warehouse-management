@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BillingController } from './billing.controller';
-import { BillingService } from './billing.service';
+import { BillingService } from './services/billing.service';
 import { RateCardController } from './controllers/rate-card.controller';
 import { InvoiceController } from './controllers/invoice.controller';
 import { PaymentController } from './controllers/payment.controller';

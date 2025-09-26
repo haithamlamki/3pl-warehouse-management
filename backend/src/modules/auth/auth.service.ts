@@ -6,10 +6,21 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { User, Role, UserRole } from '../../database/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
 
+/**
+ * @class AuthService
+ * @description This service handles all authentication-related logic, including user registration, login, token generation, and profile management.
+ */
 @Injectable()
 export class AuthService {
+  /**
+   * @constructor
+   * @param {Repository<User>} userRepository - Repository for User entities.
+   * @param {Repository<Role>} roleRepository - Repository for Role entities.
+   * @param {Repository<UserRole>} userRoleRepository - Repository for the join table between users and roles.
+   * @param {JwtService} jwtService - Service for creating and verifying JSON Web Tokens.
+   * @param {ConfigService} configService - Service for accessing configuration variables.
+   */
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -22,24 +33,23 @@ export class AuthService {
   ) {}
 
   /**
-   * Register a new user
-   * @param registerDto Registration data
-   * @returns User and tokens
+   * @method register
+   * @description Registers a new user, hashes their password, assigns a default role, and returns authentication tokens.
+   * @param {RegisterDto} registerDto - The data for the new user.
+   * @returns {Promise<object>} A promise that resolves to an object containing the sanitized user and JWT tokens.
+   * @throws {ConflictException} If a user with the provided email already exists.
    */
   async register(registerDto: RegisterDto): Promise<any> {
     const { email, password, fullName, phone, tenantId } = registerDto;
 
-    // Check if user already exists
     const existingUser = await this.userRepository.findOne({ where: { email } });
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
     }
 
-    // Hash password
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create user
     const user = this.userRepository.create({
       email,
       passwordHash,
@@ -51,7 +61,6 @@ export class AuthService {
 
     const savedUser = await this.userRepository.save(user);
 
-    // Assign default role (you can customize this logic)
     const defaultRole = await this.roleRepository.findOne({ where: { code: 'user' } });
     if (defaultRole) {
       const userRole = this.userRoleRepository.create({
@@ -61,7 +70,6 @@ export class AuthService {
       await this.userRoleRepository.save(userRole);
     }
 
-    // Generate tokens
     const tokens = await this.generateTokens(savedUser);
 
     return {
@@ -71,10 +79,11 @@ export class AuthService {
   }
 
   /**
-   * Validate user credentials
-   * @param email User email
-   * @param password User password
-   * @returns User if valid, null otherwise
+   * @method validateUser
+   * @description Validates a user's credentials by comparing the provided password with the stored hash.
+   * @param {string} email - The user's email address.
+   * @param {string} password - The user's plain-text password.
+   * @returns {Promise<User | null>} A promise that resolves to the User entity if validation is successful, otherwise null.
    */
   async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.userRepository.findOne({
@@ -90,9 +99,10 @@ export class AuthService {
   }
 
   /**
-   * Login user
-   * @param user User entity
-   * @returns User and tokens
+   * @method login
+   * @description Generates JWT tokens for an already authenticated user.
+   * @param {User} user - The authenticated user entity.
+   * @returns {Promise<object>} A promise that resolves to an object containing the sanitized user and JWT tokens.
    */
   async login(user: User): Promise<any> {
     const tokens = await this.generateTokens(user);
@@ -104,9 +114,11 @@ export class AuthService {
   }
 
   /**
-   * Refresh access token
-   * @param refreshToken Refresh token
-   * @returns New tokens
+   * @method refreshToken
+   * @description Generates a new set of access and refresh tokens using a valid refresh token.
+   * @param {string} refreshToken - The refresh token to be verified.
+   * @returns {Promise<object>} A promise that resolves to an object containing the sanitized user and new JWT tokens.
+   * @throws {UnauthorizedException} If the refresh token is invalid or the user is not found or inactive.
    */
   async refreshToken(refreshToken: string): Promise<any> {
     try {
@@ -135,19 +147,22 @@ export class AuthService {
   }
 
   /**
-   * Logout user (invalidate tokens)
-   * @param userId User ID
+   * @method logout
+   * @description Logs out a user. In a real application, this would involve token blacklisting.
+   * @param {string} userId - The ID of the user to log out.
+   * @returns {Promise<void>}
    */
   async logout(userId: string): Promise<void> {
     // In a real application, you might want to blacklist tokens
-    // For now, we'll just return success
     console.log(`User ${userId} logged out`);
   }
 
   /**
-   * Get user profile
-   * @param userId User ID
-   * @returns User profile
+   * @method getProfile
+   * @description Retrieves the profile for the currently authenticated user.
+   * @param {string} userId - The ID of the user.
+   * @returns {Promise<object>} A promise that resolves to the sanitized user profile.
+   * @throws {UnauthorizedException} If the user is not found.
    */
   async getProfile(userId: string): Promise<any> {
     const user = await this.userRepository.findOne({
@@ -163,9 +178,12 @@ export class AuthService {
   }
 
   /**
-   * Change user password
-   * @param userId User ID
-   * @param changePasswordDto Password change data
+   * @method changePassword
+   * @description Allows a user to change their password after verifying their current one.
+   * @param {string} userId - The ID of the user changing their password.
+   * @param {any} changePasswordDto - An object containing the current and new passwords.
+   * @returns {Promise<void>}
+   * @throws {UnauthorizedException} If the user is not found or the current password is incorrect.
    */
   async changePassword(userId: string, changePasswordDto: any): Promise<void> {
     const { currentPassword, newPassword } = changePasswordDto;
@@ -175,24 +193,23 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    // Verify current password
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isCurrentPasswordValid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    // Hash new password
     const saltRounds = 12;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update password
     await this.userRepository.update(userId, { passwordHash: newPasswordHash });
   }
 
   /**
-   * Generate access and refresh tokens
-   * @param user User entity
-   * @returns Tokens
+   * @method generateTokens
+   * @description Generates JWT access and refresh tokens for a user.
+   * @private
+   * @param {User} user - The user entity for whom to generate tokens.
+   * @returns {Promise<object>} A promise that resolves to an object containing the accessToken and refreshToken.
    */
   private async generateTokens(user: User): Promise<any> {
     const payload = {
@@ -215,9 +232,11 @@ export class AuthService {
   }
 
   /**
-   * Remove sensitive data from user object
-   * @param user User entity
-   * @returns Sanitized user
+   * @method sanitizeUser
+   * @description Removes sensitive properties (like passwordHash) from the user object before sending it in a response.
+   * @private
+   * @param {User} user - The user entity to sanitize.
+   * @returns {object} The user object without the password hash.
    */
   private sanitizeUser(user: User): any {
     const { passwordHash, ...sanitizedUser } = user;

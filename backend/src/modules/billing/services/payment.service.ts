@@ -1,11 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Payment, Invoice } from '../../database/entities/billing.entity';
+import { Payment, Invoice } from '../../../database/entities/billing.entity';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
 
+/**
+ * @class PaymentService
+ * @description This service manages all operations related to payments, including creation, retrieval, and refunds.
+ */
 @Injectable()
 export class PaymentService {
+  /**
+   * @constructor
+   * @param {Repository<Payment>} paymentRepo - Repository for Payment entities.
+   * @param {Repository<Invoice>} invoiceRepo - Repository for Invoice entities.
+   */
   constructor(
     @InjectRepository(Payment)
     private readonly paymentRepo: Repository<Payment>,
@@ -14,12 +23,13 @@ export class PaymentService {
   ) {}
 
   /**
-   * Find all payments
-   * @param invoiceId Invoice ID filter
-   * @param customerId Customer ID filter
-   * @param from Start date filter
-   * @param to End date filter
-   * @returns Payments
+   * @method findAll
+   * @description Retrieves a list of payments, with optional filtering.
+   * @param {string} [invoiceId] - Optional ID of the invoice to filter by.
+   * @param {string} [customerId] - Optional ID of the customer to filter by.
+   * @param {string} [from] - Optional start date for payments (YYYY-MM-DD).
+   * @param {string} [to] - Optional end date for payments (YYYY-MM-DD).
+   * @returns {Promise<Payment[]>} A promise that resolves to an array of Payment entities.
    */
   async findAll(
     invoiceId?: string,
@@ -52,9 +62,11 @@ export class PaymentService {
   }
 
   /**
-   * Find payment by ID
-   * @param id Payment ID
-   * @returns Payment
+   * @method findOne
+   * @description Finds a single payment by its unique ID.
+   * @param {string} id - The unique identifier of the payment.
+   * @returns {Promise<Payment>} A promise that resolves to the Payment entity.
+   * @throws {NotFoundException} If no payment is found with the given ID.
    */
   async findOne(id: string): Promise<Payment> {
     const payment = await this.paymentRepo.findOne({
@@ -70,9 +82,12 @@ export class PaymentService {
   }
 
   /**
-   * Create payment
-   * @param dto Create payment DTO
-   * @returns Created payment
+   * @method create
+   * @description Creates a new payment for an invoice and updates the invoice status accordingly.
+   * @param {CreatePaymentDto} dto - The data transfer object containing the details for the new payment.
+   * @returns {Promise<Payment>} A promise that resolves to the newly created Payment entity.
+   * @throws {NotFoundException} If the specified invoice is not found.
+   * @throws {Error} If the payment amount exceeds the remaining balance of the invoice.
    */
   async create(dto: CreatePaymentDto): Promise<Payment> {
     // Verify invoice exists
@@ -122,10 +137,12 @@ export class PaymentService {
   }
 
   /**
-   * Process refund
-   * @param id Payment ID
-   * @param refundDto Refund details
-   * @returns Refund result
+   * @method refund
+   * @description Processes a refund for a specific payment by creating a negative payment record.
+   * @param {string} id - The unique identifier of the payment to be refunded.
+   * @param {any} refundDto - An object containing the refund amount and reason.
+   * @returns {Promise<{ message: string }>} A promise that resolves to an object with a success message.
+   * @throws {Error} If the refund amount exceeds the original payment amount.
    */
   async refund(id: string, refundDto: any): Promise<{ message: string }> {
     const payment = await this.findOne(id);
@@ -168,9 +185,11 @@ export class PaymentService {
   }
 
   /**
-   * Get total paid amount for an invoice
-   * @param invoiceId Invoice ID
-   * @returns Total paid amount
+   * @method getTotalPaidAmount
+   * @description Calculates the total paid amount for a given invoice.
+   * @private
+   * @param {string} invoiceId - The unique identifier of the invoice.
+   * @returns {Promise<number>} A promise that resolves to the total paid amount.
    */
   private async getTotalPaidAmount(invoiceId: string): Promise<number> {
     const result = await this.paymentRepo
@@ -183,11 +202,12 @@ export class PaymentService {
   }
 
   /**
-   * Get payment summary for customer
-   * @param customerId Customer ID
-   * @param from Start date
-   * @param to End date
-   * @returns Payment summary
+   * @method getPaymentSummary
+   * @description Retrieves a summary of payments for a specific customer, with optional date filtering.
+   * @param {string} customerId - The ID of the customer to retrieve the summary for.
+   * @param {string} [from] - Optional start date for the payments (YYYY-MM-DD).
+   * @param {string} [to] - Optional end date for the payments (YYYY-MM-DD).
+   * @returns {Promise<object>} A promise that resolves to an object containing the payment summary and a list of recent payments.
    */
   async getPaymentSummary(
     customerId: string,

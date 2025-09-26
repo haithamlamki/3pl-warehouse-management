@@ -1,13 +1,38 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Order, Inventory, Item, Customer, Invoice, Payment } from '../../database/entities';
+import { Repository, In } from 'typeorm';
+import {
+  Order,
+  Inventory,
+  Item,
+  Customer,
+  Invoice,
+  Payment,
+  OrderLine,
+  OrderType,
+} from '../../database/entities';
 
+/**
+ * @class ReportsService
+ * @description This service is responsible for aggregating data from various sources to generate reports.
+ */
 @Injectable()
 export class ReportsService {
+  /**
+   * @constructor
+   * @param {Repository<Order>} orderRepository - Repository for Order entities.
+   * @param {Repository<OrderLine>} orderLineRepository - Repository for OrderLine entities.
+   * @param {Repository<Inventory>} inventoryRepository - Repository for Inventory entities.
+   * @param {Repository<Item>} itemRepository - Repository for Item entities.
+   * @param {Repository<Customer>} customerRepository - Repository for Customer entities.
+   * @param {Repository<Invoice>} invoiceRepository - Repository for Invoice entities.
+   * @param {Repository<Payment>} paymentRepository - Repository for Payment entities.
+   */
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    @InjectRepository(OrderLine)
+    private readonly orderLineRepository: Repository<OrderLine>,
     @InjectRepository(Inventory)
     private readonly inventoryRepository: Repository<Inventory>,
     @InjectRepository(Item)
@@ -20,6 +45,11 @@ export class ReportsService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
+  /**
+   * @method getDashboard
+   * @description Retrieves a summary of key metrics and data for the main dashboard.
+   * @returns {Promise<object>} A promise that resolves to an object containing dashboard data.
+   */
   async getDashboard() {
     const [
       totalCustomers,
@@ -48,6 +78,15 @@ export class ReportsService {
     };
   }
 
+  /**
+   * @method getInventoryReports
+   * @description Generates a report on current inventory levels, with optional filters.
+   * @param {string} [customerId] - Optional ID of the customer to filter inventory by.
+   * @param {string} [warehouseId] - Optional ID of the warehouse to filter inventory by.
+   * @param {string} [from] - Optional start date to filter inventory records by their last update time.
+   * @param {string} [to] - Optional end date to filter inventory records by their last update time.
+   * @returns {Promise<object>} A promise that resolves to an object containing the inventory list and totals.
+   */
   async getInventoryReports(
     customerId?: string,
     warehouseId?: string,
@@ -73,16 +112,49 @@ export class ReportsService {
     }
 
     const inventories = await query.getMany();
+    const itemSkus = [...new Set(inventories.map((inv) => inv.itemSku))];
+    let totalValue = 0;
+
+    if (itemSkus.length > 0) {
+      const lastPurchasePrices = await this.orderLineRepository
+        .createQueryBuilder('line')
+        .leftJoin('line.order', 'order')
+        .where('line.itemSku IN (:...itemSkus)', { itemSkus })
+        .andWhere('order.type = :type', { type: OrderType.IN })
+        .orderBy('line.createdAt', 'DESC')
+        .getMany();
+
+      const priceMap = new Map<string, number>();
+      for (const line of lastPurchasePrices) {
+        if (!priceMap.has(line.itemSku)) {
+          priceMap.set(line.itemSku, line.unitPrice);
+        }
+      }
+
+      totalValue = inventories.reduce((sum, inv) => {
+        const price = priceMap.get(inv.itemSku) || 0;
+        return sum + inv.qty * price;
+      }, 0);
+    }
 
     return {
       inventories,
       totals: {
         totalItems: inventories.reduce((sum, inv) => sum + inv.qty, 0),
-        totalValue: inventories.reduce((sum, inv) => sum + (inv.qty * (inv.item?.unitPrice || 0)), 0),
+        totalValue,
       },
     };
   }
 
+  /**
+   * @method getOrderReports
+   * @description Generates a report on orders, with optional filters.
+   * @param {string} [customerId] - Optional ID of the customer to filter orders by.
+   * @param {string} [status] - Optional status to filter orders by.
+   * @param {string} [from] - Optional start date to filter orders by their creation time.
+   * @param {string} [to] - Optional end date to filter orders by their creation time.
+   * @returns {Promise<object>} A promise that resolves to an object containing the list of orders and calculated metrics.
+   */
   async getOrderReports(
     customerId?: string,
     status?: string,
@@ -92,7 +164,7 @@ export class ReportsService {
     const query = this.orderRepository
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.customer', 'customer')
-      .leftJoinAndSelect('order.items', 'items')
+      .leftJoinAndSelect('order.lines', 'items')
       .leftJoinAndSelect('items.item', 'item');
 
     if (customerId) {
@@ -113,12 +185,33 @@ export class ReportsService {
       orders,
       metrics: {
         totalOrders: orders.length,
-        totalValue: orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
-        totalItems: orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.qty, 0), 0),
+        totalValue: orders.reduce(
+          (sum, order) =>
+            sum +
+            (order.lines?.reduce(
+              (lineSum, line) => lineSum + line.qty * (line.unitPrice || 0),
+              0,
+            ) || 0),
+          0,
+        ),
+        totalItems: orders.reduce(
+          (sum, order) =>
+            sum +
+            (order.lines?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0),
+          0,
+        ),
       },
     };
   }
 
+  /**
+   * @method getFinancialReports
+   * @description Generates a report on financials based on invoices and payments.
+   * @param {string} [customerId] - Optional ID of the customer to filter by.
+   * @param {string} [from] - Optional start date for the report period.
+   * @param {string} [to] - Optional end date for the report period.
+   * @returns {Promise<object>} A promise that resolves to an object containing a list of invoices and financial summaries.
+   */
   async getFinancialReports(
     customerId?: string,
     from?: string,
@@ -143,12 +236,36 @@ export class ReportsService {
       invoices,
       financials: {
         totalInvoiced: invoices.reduce((sum, invoice) => sum + invoice.total, 0),
-        totalPaid: invoices.reduce((sum, invoice) => sum + invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0), 0),
-        totalOutstanding: invoices.reduce((sum, invoice) => sum + (invoice.total - invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0)), 0),
+        totalPaid: invoices.reduce(
+          (sum, invoice) =>
+            sum +
+            invoice.payments.reduce(
+              (paymentSum, payment) => paymentSum + payment.amount,
+              0,
+            ),
+          0,
+        ),
+        totalOutstanding: invoices.reduce(
+          (sum, invoice) =>
+            sum +
+            (invoice.total -
+              invoice.payments.reduce(
+                (paymentSum, payment) => paymentSum + payment.amount,
+                0,
+              )),
+          0,
+        ),
       },
     };
   }
 
+  /**
+   * @method getPerformanceKPIs
+   * @description Retrieves a set of mock performance KPIs.
+   * @param {string} [period] - Optional period for the KPIs (e.g., 'month', 'quarter').
+   * @param {string} [customerId] - Optional customer ID to filter KPIs.
+   * @returns {Promise<object>} A promise that resolves to an object containing mock KPI data.
+   */
   async getPerformanceKPIs(period?: string, customerId?: string) {
     return {
       period,
@@ -161,22 +278,47 @@ export class ReportsService {
     };
   }
 
+  /**
+   * @method getTotalRevenue
+   * @description Calculates the total revenue from all 'PAID' invoices.
+   * @private
+   * @returns {Promise<number>} A promise that resolves to the total revenue.
+   */
   private async getTotalRevenue(): Promise<number> {
     const result = await this.invoiceRepository
       .createQueryBuilder('invoice')
       .select('SUM(invoice.total)', 'total')
+      .where('invoice.status = :status', { status: 'PAID' })
       .getRawOne();
     return parseFloat(result.total) || 0;
   }
 
+  /**
+   * @method getOrderTrends
+   * @description Placeholder for retrieving order trend data.
+   * @private
+   * @returns {Promise<any[]>} A promise that resolves to an empty array.
+   */
   private async getOrderTrends() {
     return [];
   }
 
+  /**
+   * @method getRevenueTrends
+   * @description Placeholder for retrieving revenue trend data.
+   * @private
+   * @returns {Promise<any[]>} A promise that resolves to an empty array.
+   */
   private async getRevenueTrends() {
     return [];
   }
 
+  /**
+   * @method getInventoryLevels
+   * @description Placeholder for retrieving inventory level trend data.
+   * @private
+   * @returns {Promise<any[]>} A promise that resolves to an empty array.
+   */
   private async getInventoryLevels() {
     return [];
   }
