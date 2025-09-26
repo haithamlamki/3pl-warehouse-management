@@ -1,0 +1,53 @@
+{
+  "name": "3pl-frontend",
+  "version": "1.0.0",
+  "description": "3PL Warehouse Management System Frontend",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@next/font": "14.0.0",
+    "next-i18next": "^15.0.0",
+    "react-i18next": "^13.5.0",
+    "i18next": "^23.7.0",
+    "@tanstack/react-query": "^5.0.0",
+    "axios": "^1.6.0",
+    "react-hook-form": "^7.47.0",
+    "@hookform/resolvers": "^3.3.0",
+    "zod": "^3.22.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "@headlessui/react": "^1.7.0",
+    "@heroicons/react": "^2.0.0",
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "recharts": "^2.8.0",
+    "react-hot-toast": "^2.4.0",
+    "js-cookie": "^3.0.0",
+    "react-signature-canvas": "^1.0.0",
+    "html2canvas": "^1.4.0",
+    "jspdf": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/js-cookie": "^3.0.0",
+    "typescript": "^5.2.0",
+    "eslint": "^8.51.0",
+    "eslint-config-next": "14.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "prettier": "^3.0.0",
+    "prettier-plugin-tailwindcss": "^0.5.0"
+  }
+}

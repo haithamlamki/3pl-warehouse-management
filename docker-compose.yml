@@ -1,0 +1,42 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    container_name: wms_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-3pl_warehouse}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./backend
+    container_name: wms_api
+    depends_on:
+      - db
+    environment:
+      NODE_ENV: development
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-3pl_warehouse}
+      JWT_SECRET: ${JWT_SECRET:-devsecret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-devrefresh}
+    ports:
+      - "3001:3001"
+    command: ["node", "dist/main.js"]
+    volumes:
+      - ./backend/dist:/app/dist
+      - ./backend/package.json:/app/package.json
+      - ./backend/node_modules:/app/node_modules
+
+volumes:
+  db_data:
+
+
